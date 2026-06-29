@@ -11,8 +11,8 @@ requests
 gunicorn
 segmentation-models-pytorch
 timm
-torch==2.12.1+cpu
-torchvision==0.27.1+cpu
+torch==2.12.1
+torchvision==0.27.1
 
 # Render and other hosts may require the PyTorch CPU wheel index.
 # Use build command: pip install -r requirements.txt -f https://download.pytorch.org/whl/cpu
