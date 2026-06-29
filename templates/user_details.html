@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<title>تفاصيل المستخدم</title>
+
+<style>
+
+body{
+    font-family:Tahoma;
+    margin:0;
+    background:#f4f6f9;
+}
+
+header{
+    background:#1e3d59;
+    color:white;
+    padding:15px;
+}
+
+.container{
+    width:95%;
+    margin:auto;
+    margin-top:20px;
+}
+
+.user-card{
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    margin-bottom:20px;
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+}
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+    margin-bottom:20px;
+}
+
+.card{
+    background:white;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+}
+
+.card h2{
+    color:#1e3d59;
+}
+
+table{
+    width:100%;
+    background:white;
+    border-collapse:collapse;
+    border-radius:10px;
+    overflow:hidden;
+}
+
+th{
+    background:#1e3d59;
+    color:white;
+    padding:10px;
+}
+
+td{
+    padding:10px;
+    text-align:center;
+    border-bottom:1px solid #ddd;
+}
+
+.btn{
+    background:#198754;
+    color:white;
+    padding:6px 10px;
+    border-radius:5px;
+    text-decoration:none;
+}
+
+.btn:hover{
+    background:#146c43;
+}
+
+.badge{
+    padding:4px 8px;
+    border-radius:6px;
+    color:white;
+    font-size:12px;
+}
+
+.green{background:#28a745;}
+.yellow{background:#ffc107;color:black;}
+.red{background:#dc3545;}
+@media (max-width:420px){
+
+    body{
+        padding:0px;
+    }
+    
+header{
+   
+    padding:5px;
+   
+}
+header h2{
+    font: 1em sans-serif;
+}
+.logout{
+    
+    padding:8px 16px;
+    border-radius:6px;
+    text-decoration:none;
+}
+.cards{
+        padding: 0px;
+        border-radius:12px;
+        gap: 3px;
+    margin-bottom: 10px;
+    }
+    .card h1{
+        font-size: 10px;
+    }
+    th{
+    padding: 12px;
+    font-size: 10px;
+    }
+    td{
+    padding: 10px;
+    font-size: 10px;
+    }
+
+    .form-title{
+        font-size:18px;
+    }
+
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h2>تفاصيل المستخدم</h2>
+</header>
+
+<div class="container">
+
+<!-- USER INFO -->
+<div class="user-card">
+    <h3>{{ user[1] }} {{ user[2] }}</h3>
+    <p>{{ user[3] }}</p>
+</div>
+
+<!-- ANALYTICS CARDS -->
+<div class="cards">
+
+<div class="card">
+    <h2>{{ analyses|length }}</h2>
+    <p>عدد التحليلات</p>
+</div>
+
+<div class="card">
+    <h2>
+        {{ analyses[0][4] if analyses else 0 }}
+    </h2>
+    <p>أعلى NDVI</p>
+</div>
+
+<div class="card">
+    <h2>
+        {{ analyses[0][5] if analyses else 0 }}
+    </h2>
+    <p>أقل NDVI</p>
+</div>
+
+<div class="card">
+    <h2>
+        {{ analyses[0][1] if analyses else 0 }}
+    </h2>
+    <p>Healthy Pixels (آخر تحليل)</p>
+</div>
+
+</div>
+
+<!-- TABLE -->
+<table border="1">
+    <tr>
+        <th>ID</th>
+        <th>Healthy</th>
+        <th>Medium</th>
+        <th>Damaged</th>
+        <th>NDVI Min</th>
+        <th>NDVI Max</th>
+        <th>Date</th>
+        <th>Original Image</th>
+        <th>NDVI Map</th>
+    </tr>
+
+    {% for a in analyses %}
+    <tr>
+        <td>{{ a[0] }}</td>
+        <td>{{ a[1] }}</td>
+        <td>{{ a[2] }}</td>
+        <td>{{ a[3] }}</td>
+        <td>{{ a[4] }}</td>
+        <td>{{ a[5] }}</td>
+        <td>{{ a[6] }}</td>
+
+        <td>
+            <img src="/{{ a[7] }}" width="150">
+        </td>
+
+        <td>
+            <img src="/{{ a[8] }}" width="150">
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+</div>
+
+</body>
+</html>
