@@ -53,43 +53,98 @@ app.secret_key = os.environ.get("SECRET_KEY", "change_me")
 
 # Database
 
+def is_sqlite(conn):
+    return conn is not None and conn.__class__.__module__.startswith("sqlite3")
+
+
+def adapt_query(conn, query):
+    return query.replace("%s", "?") if is_sqlite(conn) else query
+
+
+def execute_query(conn, cur, query, params=None):
+    if params is None:
+        params = ()
+    cur.execute(adapt_query(conn, query), params)
+
+
 def init_db(conn):
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        first_name TEXT NOT NULL,
-        last_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        is_admin INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS analysis (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        healthy_pixels INTEGER,
-        medium_pixels INTEGER,
-        damaged_pixels INTEGER,
-        ndvi_min REAL,
-        ndvi_max REAL,
-        original_image TEXT,
-        health_map TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
+    if is_sqlite(conn):
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            healthy_pixels INTEGER,
+            medium_pixels INTEGER,
+            damaged_pixels INTEGER,
+            ndvi_min REAL,
+            ndvi_max REAL,
+            original_image TEXT,
+            health_map TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+    else:
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            is_admin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS analysis (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            healthy_pixels INTEGER,
+            medium_pixels INTEGER,
+            damaged_pixels INTEGER,
+            ndvi_min REAL,
+            ndvi_max REAL,
+            original_image TEXT,
+            health_map TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
     conn.commit()
 
 
 def get_connection():
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        try:
+            conn = psycopg2.connect(database_url, sslmode="require")
+            init_db(conn)
+            return conn
+        except Exception as exc:
+            print(f"Postgres connection via DATABASE_URL failed, using SQLite fallback: {exc}")
+
     try:
-        return psycopg2.connect(
-            host=os.environ.get("DB_HOST", "localhost"),
-            database=os.environ.get("DB_NAME", "agriculture_system"),
-            user=os.environ.get("DB_USER", "postgres"),
-            password=os.environ.get("DB_PASSWORD", "m")
-        )
+        conn_kwargs = {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "database": os.environ.get("DB_NAME", "agriculture_system"),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "m")
+        }
+        if conn_kwargs["host"] != "localhost":
+            conn_kwargs["sslmode"] = "require"
+        conn = psycopg2.connect(**conn_kwargs)
+        init_db(conn)
+        return conn
     except Exception as exc:
         print(f"Postgres unavailable, using SQLite fallback: {exc}")
         conn = sqlite3.connect(DB_PATH)
@@ -196,11 +251,7 @@ def register():
     conn = get_connection()
     cur = conn.cursor()
 
-  
-    cur.execute(
-        "SELECT id FROM users WHERE email=%s",
-        (email,)
-    )
+    execute_query(conn, cur, "SELECT id FROM users WHERE email=%s", (email,))
 
     if cur.fetchone():
 
@@ -214,33 +265,63 @@ def register():
         bcrypt.gensalt()
     )
 
-    cur.execute(
-        """
-        INSERT INTO users
-        (
-            first_name,
-            last_name,
-            email,
-            password
+    if is_sqlite(conn):
+        execute_query(
+            conn,
+            cur,
+            """
+            INSERT INTO users
+            (
+                first_name,
+                last_name,
+                email,
+                password
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            """,
+            (
+                first_name,
+                last_name,
+                email,
+                hashed.decode()
+            )
         )
-        VALUES
-        (
-            %s,
-            %s,
-            %s,
-            %s
+        user_id = cur.lastrowid
+    else:
+        execute_query(
+            conn,
+            cur,
+            """
+            INSERT INTO users
+            (
+                first_name,
+                last_name,
+                email,
+                password
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            RETURNING id
+            """,
+            (
+                first_name,
+                last_name,
+                email,
+                hashed.decode()
+            )
         )
-        RETURNING id
-        """,
-        (
-            first_name,
-            last_name,
-            email,
-            hashed.decode()
-        )
-    )
-
-    user_id = cur.fetchone()[0]
+        user_id = cur.fetchone()[0]
 
     conn.commit()
 
@@ -261,7 +342,7 @@ def login():
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
+    execute_query(conn, cur, """
 SELECT
     id,
     email,
@@ -269,7 +350,7 @@ SELECT
     is_admin
 FROM users
 WHERE email=%s
-""",(email,))
+""", (email,))
     user = cur.fetchone()
 
     cur.close()
@@ -345,14 +426,14 @@ def user_details(user_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
+    execute_query(conn, cur, """
         SELECT id, first_name, last_name, email
         FROM users
         WHERE id=%s
     """, (user_id,))
     user = cur.fetchone()
 
-    cur.execute("""
+    execute_query(conn, cur, """
         SELECT 
             id,
             healthy_pixels,
@@ -571,8 +652,11 @@ def analyze():
         conn = get_connection()
         cur = conn.cursor()
 
-        timestamp_sql = "CURRENT_TIMESTAMP" if conn.__class__.__module__.startswith("sqlite3") else "NOW()"
-        cur.execute(f"""
+        timestamp_sql = "CURRENT_TIMESTAMP" if is_sqlite(conn) else "NOW()"
+        execute_query(
+            conn,
+            cur,
+            f"""
     INSERT INTO analysis (
         user_id,
         healthy_pixels,
@@ -585,16 +669,18 @@ def analyze():
         created_at
     )
     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,{timestamp_sql})
-""", (
-    user_id,
-    int(healthy),
-    int(medium),
-    int(damaged),
-    float(np.min(ndvi)),
-    float(np.max(ndvi)),
-    rgb_path,
-    ndvi_path
-))
+""",
+            (
+                user_id,
+                int(healthy),
+                int(medium),
+                int(damaged),
+                float(np.min(ndvi)),
+                float(np.max(ndvi)),
+                rgb_path,
+                ndvi_path
+            )
+        )
 
         conn.commit()
         cur.close()
