@@ -1,0 +1,12 @@
+ENVIRONMENT VARIABLES FOR RENDER
+======================================================================
+
+MODEL_URL=https://github.com/Mustafa-Babiker/satillite-image-system/releases/download/v1.0.0/agri_unet.pth
+SH_CLIENT_ID=5418b19c-c3ef-4ca5-ad90-c7a07db91a00
+SH_CLIENT_SECRET=ltsA3OD82aKbZoflYQC5LAX527jJ0pUF
+SECRET_KEY=satellite-system-secret-2026-secure-production-key
+FLASK_ENV=production
+DB_HOST=localhost
+DB_NAME=agriculture_system
+DB_USER=postgres
+DB_PASSWORD=postgres-secure-2026
