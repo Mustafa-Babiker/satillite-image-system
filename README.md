@@ -57,5 +57,5 @@ Render will deploy automatically on new pushes.
 
 - The app loads environment variables from `.env` locally.
 - `.env` is ignored by Git and should not be committed.
-- The model file `agri_unet.pth` must be present in the repository root or loaded separately.
+- The model file `agri_unet.pth` can be placed in the repository root, or you can provide `MODEL_URL` to download it at startup.
 - If you do not use PostgreSQL in Render, you may need to adjust the DB settings or disable the database functionality.
