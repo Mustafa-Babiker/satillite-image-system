@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Satellite Image Selector</title>
+
+    <!-- Leaflet -->
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Leaflet Draw -->
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+
+    <style>
+
+        body {
+
+            margin: 0;
+            padding: 20px;
+            font-family: Arial;
+            background: #f5f5f5;
+        }
+
+        h2 {
+
+            text-align: center;
+            color: #222;
+        }
+
+        #map {
+
+            height: 500px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #ccc;
+        }
+
+        .controls {
+
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        button {
+
+            padding: 12px 25px;
+            font-size: 16px;
+            border: none;
+            width: 100%;
+            background-color: khaki;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+
+            background: #0056b3;
+        }
+
+        #status {
+
+            margin-top: 15px;
+            text-align: center;
+            font-size: 18px;
+            color: green;
+        }
+
+        .loading {
+
+            color: orange;
+        }
+
+        .error {
+
+            color: red;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<h2>حدد المنطقة المطلوبة من الخريطة</h2>
+
+<div id="map"></div>
+
+<div class="controls">
+
+    <button onclick="downloadImage()">
+        تحميل صورة القمر الصناعي
+    </button>
+
+</div>
+
+<div id="status"></div>
+
+<script>
+
+    // ============================================
+    // إنشاء الخريطة
+    // ============================================
+
+    var map = L.map('map').setView([15.579220, 32.640307], 13);
+
+    L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+            attribution: 'OpenStreetMap'
+        }
+    ).addTo(map);
+
+    // ============================================
+    // طبقة الرسم
+    // ============================================
+
+    var drawnItems = new L.FeatureGroup();
+
+    map.addLayer(drawnItems);
+
+    var drawControl = new L.Control.Draw({
+
+        draw: {
+
+            polygon: true,
+            rectangle: true,
+
+            circle: false,
+            marker: false,
+            polyline: false,
+            circlemarker: false
+
+        },
+
+        edit: {
+
+            featureGroup: drawnItems
+
+        }
+
+    });
+
+    map.addControl(drawControl);
+
+    // ============================================
+    // عند رسم منطقة
+    // ============================================
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+
+        drawnItems.clearLayers();
+
+        drawnItems.addLayer(e.layer);
+
+    });
+
+    // ============================================
+    // تحميل الصورة
+    // ============================================
+
+    async function downloadImage() {
+
+        const status = document.getElementById("status");
+
+        try {
+
+            // تحقق من وجود منطقة
+
+            if (drawnItems.getLayers().length === 0) {
+
+                alert("حدد منطقة أولاً");
+
+                return;
+            }
+
+            status.className = "loading";
+
+            status.innerHTML = "جاري تحميل صورة القمر الصناعي...";
+
+            // أخذ المنطقة
+
+            const layer = drawnItems.getLayers()[0];
+
+            // استخدام bounds مباشرة (أفضل من polygon)
+
+            const bounds = layer.getBounds();
+
+            const bbox = [
+
+                bounds.getWest(),
+                bounds.getSouth(),
+
+                bounds.getEast(),
+                bounds.getNorth()
+
+            ];
+
+            console.log("BBOX:", bbox);
+
+            // إرسال الطلب للسيرفر
+
+            const response = await fetch('/download', {
+
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify({
+                    bbox: bbox
+                })
+
+            });
+
+            // تحويل الرد
+
+            const data = await response.json();
+
+            console.log(data);
+
+            // إذا فشل
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error || "حدث خطأ غير معروف"
+                );
+            }
+
+            // نجاح
+
+            status.className = "";
+
+            status.innerHTML = `
+                ✅ تم تحميل الصورة بنجاح <br>
+                📁 المجلد: ${data.folder}
+            `;
+
+            alert("تم تحميل الصورة بنجاح");
+
+        }
+
+        catch (error) {
+
+            console.error("ERROR:", error);
+
+            status.className = "error";
+
+            status.innerHTML = `
+                ❌ حدث خطأ <br>
+                ${error.message}
+            `;
+
+            alert("خطأ:\n" + error.message);
+
+        }
+
+    }
+
+</script>
+
+</body>
+</html>
