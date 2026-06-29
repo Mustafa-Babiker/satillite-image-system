@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template, redirect, session
 import psycopg2
+import sqlite3
 import bcrypt
 from sentinelhub import SentinelHubRequest, DataCollection, MimeType, BBox, CRS, SHConfig
 
@@ -23,6 +24,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_FOLDER = os.path.join(BASE_DIR, "static", "results")
 STATIC_RESULTS_PATH = "static/results"
 MODEL_PATH = os.path.join(BASE_DIR, "agri_unet.pth")
+DB_PATH = os.path.join(BASE_DIR, "app.db")
 MODEL_URL = os.environ.get("MODEL_URL")
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 
@@ -51,13 +53,48 @@ app.secret_key = os.environ.get("SECRET_KEY", "change_me")
 
 # Database
 
-def get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        database=os.environ.get("DB_NAME", "agriculture_system"),
-        user=os.environ.get("DB_USER", "postgres"),
-        password=os.environ.get("DB_PASSWORD", "m")
+def init_db(conn):
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        is_admin INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+    """)
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS analysis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        healthy_pixels INTEGER,
+        medium_pixels INTEGER,
+        damaged_pixels INTEGER,
+        ndvi_min REAL,
+        ndvi_max REAL,
+        original_image TEXT,
+        health_map TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    conn.commit()
+
+
+def get_connection():
+    try:
+        return psycopg2.connect(
+            host=os.environ.get("DB_HOST", "localhost"),
+            database=os.environ.get("DB_NAME", "agriculture_system"),
+            user=os.environ.get("DB_USER", "postgres"),
+            password=os.environ.get("DB_PASSWORD", "m")
+        )
+    except Exception as exc:
+        print(f"Postgres unavailable, using SQLite fallback: {exc}")
+        conn = sqlite3.connect(DB_PATH)
+        init_db(conn)
+        return conn
 
 
 
@@ -534,7 +571,8 @@ def analyze():
         conn = get_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        timestamp_sql = "CURRENT_TIMESTAMP" if conn.__class__.__module__.startswith("sqlite3") else "NOW()"
+        cur.execute(f"""
     INSERT INTO analysis (
         user_id,
         healthy_pixels,
@@ -546,7 +584,7 @@ def analyze():
         health_map,
         created_at
     )
-    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,{timestamp_sql})
 """, (
     user_id,
     int(healthy),
