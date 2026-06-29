@@ -112,7 +112,14 @@ def load_model():
     return model
 
 
-model = load_model()
+model = None
+
+
+def get_model():
+    global model
+    if model is None:
+        model = load_model()
+    return model
 
 #satellite image preprocessing
 
@@ -419,9 +426,10 @@ def analyze():
 
         tensor = preprocess(satellite)
 
-        if model is not None:
+        seg_model = get_model()
+        if seg_model is not None:
             with torch.no_grad():
-                output = model(tensor)
+                output = seg_model(tensor)
                 prob = torch.sigmoid(output)
                 mask = (
                     prob.squeeze().cpu().numpy() > 0.5
