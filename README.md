@@ -38,20 +38,29 @@ gunicorn app:app --workers 2 --bind 0.0.0.0:8000
 
 ## Render deployment
 
-This repository contains `render.yaml` and `Procfile` for Render.
+This repository is connected to Render for automatic deployment.
 
-- Create a new GitHub repository and push the code.
-- Connect the repository to Render.
-- Add the required environment variables in Render dashboard:
-  - `SECRET_KEY`
-  - `SH_CLIENT_ID`
-  - `SH_CLIENT_SECRET`
-  - `DB_HOST`
-  - `DB_NAME`
-  - `DB_USER`
-  - `DB_PASSWORD`
+### Environment Variables (set in Render dashboard)
 
-Render will deploy automatically on new pushes.
+Go to **Services → satillite-image-system → Settings → Environment** and add:
+
+```
+MODEL_URL=https://github.com/Mustafa-Babiker/satillite-image-system/releases/download/v1.0.0/agri_unet.pth
+SH_CLIENT_ID=<your_sentinel_hub_id>
+SH_CLIENT_SECRET=<your_sentinel_hub_secret>
+SECRET_KEY=<secure-random-key>
+DB_HOST=<database_host>
+DB_NAME=agriculture_system
+DB_USER=<database_user>
+DB_PASSWORD=<database_password>
+FLASK_ENV=production
+```
+
+### Auto Deploy
+
+- Push to `main` branch → GitHub Actions triggers Render deploy via webhook.
+- Render pulls latest code and auto-restarts the app.
+- Monitor logs at Render dashboard.
 
 ## Notes
 
