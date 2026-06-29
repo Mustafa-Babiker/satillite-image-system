@@ -7,6 +7,7 @@ from PIL import Image
 import numpy as np
 import os
 import time
+import urllib.request
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -21,6 +22,8 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_FOLDER = os.path.join(BASE_DIR, "static", "results")
 STATIC_RESULTS_PATH = "static/results"
+MODEL_PATH = os.path.join(BASE_DIR, "agri_unet.pth")
+MODEL_URL = os.environ.get("MODEL_URL")
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 
 
@@ -70,8 +73,23 @@ config.sh_client_secret = os.environ.get("SH_CLIENT_SECRET") or os.environ.get("
 
 # MODEL
 
-def load_model():
+def ensure_model_available():
+    if os.path.exists(MODEL_PATH):
+        return MODEL_PATH
 
+    if MODEL_URL:
+        print(f"Model not found locally. Downloading from {MODEL_URL}")
+        try:
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+            if os.path.exists(MODEL_PATH):
+                return MODEL_PATH
+        except Exception as exc:
+            print(f"Failed to download model: {exc}")
+
+    return None
+
+
+def load_model():
     model = smp.Unet(
         encoder_name="resnet34",
         encoder_weights=None,
@@ -80,10 +98,11 @@ def load_model():
         activation=None
     )
 
-    # Load model from repository-relative path (avoid absolute paths)
-    model_path = os.path.join(BASE_DIR, "agri_unet.pth")
-    if not os.path.exists(model_path):
-        print(f"Model file not found at {model_path}. Place weights there or set a different path.")
+    model_path = ensure_model_available()
+    if not model_path:
+        print("Model file not found and no MODEL_URL was provided. The app will run without segmentation.")
+        return None
+
     state_dict = torch.load(model_path, map_location="cpu")
     model.load_state_dict(state_dict)
 
@@ -400,15 +419,15 @@ def analyze():
 
         tensor = preprocess(satellite)
 
-        with torch.no_grad():
-
-            output = model(tensor)
-
-            prob = torch.sigmoid(output)
-
-            mask = (
-                prob.squeeze().cpu().numpy() > 0.5
-            ).astype(np.uint8)
+        if model is not None:
+            with torch.no_grad():
+                output = model(tensor)
+                prob = torch.sigmoid(output)
+                mask = (
+                    prob.squeeze().cpu().numpy() > 0.5
+                ).astype(np.uint8)
+        else:
+            mask = np.zeros((rgb.shape[0], rgb.shape[1]), dtype=np.uint8)
 
 #saving the mask image
 
