@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Satellite Image Selector</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"/>
+  <style>
+    button{
+      width: 100%;
+      background-color: khaki;
+      border-radius: 5px;
+    }
+    /* .leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+    -ms-touch-action: none;
+    touch-action: none;
+    height: 455px;
+    border-radius: 10px;
+    bottom: 8px;
+} */
+  </style>
+</head>
+<body>
+  <h2>حدد المنطقة على الخريطة</h2>
+  <div id="map" style="height: 455px;border-radius: 10px;"></div>
+  <button onclick="downloadImage()">تحميل الصورة</button>
+
+  <script>
+    var map = L.map('map').setView([15.579220, 32.640307], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    var drawControl = new L.Control.Draw({
+      draw: { polygon: true, rectangle: true },
+      edit: { featureGroup: drawnItems }
+    });
+    map.addControl(drawControl);
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+      var layer = e.layer;
+      drawnItems.clearLayers(); // خلي المستخدم يرسم شكل واحد فقط
+      drawnItems.addLayer(layer);
+    });
+
+    function downloadImage() {
+      if (drawnItems.getLayers().length === 0) {
+        alert("من فضلك حدد منطقة أولاً");
+        return;
+      }
+
+      var layer = drawnItems.getLayers()[0];
+      var geojson = layer.toGeoJSON();
+      var coords = geojson.geometry.coordinates[0];
+
+      var lons = coords.map(c => c[0]);
+      var lats = coords.map(c => c[1]);
+      var minLon = Math.min(...lons);
+      var maxLon = Math.max(...lons);
+      var minLat = Math.min(...lats);
+      var maxLat = Math.max(...lats);
+
+      var bbox = [minLon, minLat, maxLon, maxLat];
+      console.log("BBox:", bbox);
+
+      fetch('/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bbox: bbox })
+      })
+      .then(res =>{
+    window.location.href = res.url;
+})
+      .then(data => alert("تم تنزيل الصورة: " + data.filename))
+      .catch(err => console.error("Error:", err));
+    }
+  </script>
+</body>
+</html>
