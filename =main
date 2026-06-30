@@ -1,1 +1,40 @@
-web: gunicorn app:app --workers 1 --threads 1 --bind 0.0.0.0:$PORT
+databases:
+  - name: agriculture-db
+    databaseName: agriculture_system
+    user: agriculture_user
+    plan: free
+
+services:
+  - type: web
+    name: satillite-image-system
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt -f https://download.pytorch.org/whl/cpu
+    startCommand: gunicorn app:app --workers 1 --threads 1 --bind 0.0.0.0:$PORT
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agriculture-db
+          property: connectionString
+      - key: DB_HOST
+        fromDatabase:
+          name: agriculture-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: agriculture-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: agriculture-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: agriculture-db
+          property: password
+      - key: SECRET_KEY
+        value: change-me-please
+      - key: FLASK_ENV
+        value: production
